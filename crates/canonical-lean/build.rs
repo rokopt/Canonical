@@ -34,4 +34,18 @@ fn main() {
     if target_os == "windows" {
         println!("cargo:rustc-link-lib=dylib=Init_shared");
     }
+    // Bundle libgcc's unwinder privately. Otherwise our `_Unwind_*` imports
+    // bind partly to the LLVM libunwind that libleanshared exports and partly
+    // to libgcc_s (for the functions Lean doesn't export), the two unwinders'
+    // contexts get mixed, and every Rust panic aborts the process ("failed to
+    // initiate panic, error 3") instead of unwinding, so `catch_unwind` (e.g.
+    // the CPU fallback in `canonical_core::ai`) never gets a chance to run.
+    if target_os == "linux"
+        && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("gnu")
+    {
+        for arg in ["-Wl,--whole-archive", "-lgcc_eh", "-Wl,--no-whole-archive",
+                    "-Wl,--exclude-libs,libgcc_eh.a"] {
+            println!("cargo:rustc-cdylib-link-arg={}", arg);
+        }
+    }
 }
