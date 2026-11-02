@@ -16,6 +16,10 @@ stacker = "0.1.23"
 burn = { version = "0.21.0", default-features = false, features = ["std", "dispatch", "ndarray", "webgpu"] }
 # The burn-onnx generated code loads its weights through `burn_store`.
 burn-store = "0.21.0"
+# To ask which adapter wgpu would pick before burn creates a device on it (see `ai.rs`).
+# Same version and features as burn's own (through cubecl-wgpu).
+wgpu = "29"
+futures-lite = "2"
 
 [build-dependencies]
 burn-onnx = "0.21.0"

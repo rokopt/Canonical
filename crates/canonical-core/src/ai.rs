@@ -60,11 +60,37 @@ const PAD: i64 = 11;
 /// also keeps problems from running at once.
 static MODEL: Lazy<Mutex<(Model, DispatchDevice)>> = Lazy::new(|| {
     let on = |device: DispatchDevice| (Model::from_embedded(&device), device);
-    // Burn panics when wgpu has no adapter at all, not even a software one: use the CPU.
-    let model = panic::catch_unwind(|| on(DispatchDevice::default()))
-        .unwrap_or_else(|_| on(DispatchDevice::NdArray(Default::default())));
+    let cpu = || on(DispatchDevice::NdArray(Default::default()));
+    let model = if gpu_available() {
+        // Should device creation still fail, burn panics: fall back to the CPU.
+        panic::catch_unwind(|| on(DispatchDevice::default())).unwrap_or_else(|_| cpu())
+    } else {
+        cpu()
+    };
     Mutex::new(model)
 });
+
+/// Whether the adapter that wgpu picks for burn's default device is a real GPU.
+///
+/// Asked up front because burn panics when there is no adapter, or when creating a device
+/// on it fails. That happens with lavapipe, the CPU Vulkan driver that is the only adapter
+/// under WSL on ARM: wgpu-hal panics partway through device creation, and even though the
+/// panic is caught, the heap is left corrupted and the process crashes soon after. A CPU
+/// adapter wouldn't beat NdArray anyway.
+fn gpu_available() -> bool {
+    use burn::backend::wgpu::graphics::{AutoGraphicsApi, GraphicsApi};
+    // As cubecl-wgpu does for `WgpuDevice::DefaultDevice`.
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: AutoGraphicsApi::backend().into(),
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+    let adapter = futures_lite::future::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        force_fallback_adapter: false,
+        compatible_surface: None,
+    }));
+    matches!(adapter, Ok(adapter) if adapter.get_info().device_type != wgpu::DeviceType::Cpu)
+}
 
 pub struct Symbols {
     pub token_positions: TensorData,
