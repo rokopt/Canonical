@@ -9,3 +9,9 @@ rustflags = [
   "-C", "link-arg=-Wl,-undefined,dynamic_lookup",
   "-C", "link-arg=-Wl,-no_fixup_chains"
 ]
+
+# gemm-f16 (a build dependency, through burn-onnx) has aarch64 inline assembly
+# that needs half-precision NEON, which Rust's aarch64 Linux baseline lacks.
+# See https://github.com/sarah-quinones/gemm/issues/31
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-Ctarget-feature=+fp16,+fhm"]
