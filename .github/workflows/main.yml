@@ -43,10 +43,14 @@ jobs:
     needs: release
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
             lib_path: target/release/libcanonical_lean.so
+          # Same file name as the x86 library, so it is uploaded as `asset`.
+          - os: ubuntu-24.04-arm
+            lib_path: target/release/libcanonical_lean.so
+            asset: libcanonical_lean_aarch64.so
           - os: macos-latest
             lib_path: target/release/libcanonical_lean.dylib
           - os: windows-latest
@@ -98,6 +102,12 @@ jobs:
 
       - name: Upload built library
         shell: bash
-        run: gh release upload "${{ github.event.inputs.tag }}" "${{ matrix.lib_path }}"
+        run: |
+          lib="${{ matrix.lib_path }}"
+          if [ -n "${{ matrix.asset }}" ]; then
+            cp "$lib" "${{ matrix.asset }}"
+            lib="${{ matrix.asset }}"
+          fi
+          gh release upload "${{ github.event.inputs.tag }}" "$lib"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
